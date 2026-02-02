@@ -3,33 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School-Tracker Cloud Edition</title>
+    <title>School-Tracker Pro Calendar</title>
     <style>
         :root { --primary: #00d4ff; --bg: #0b0b0b; --card: #161616; --text: #eee; --danger: #ff4444; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 50px; }
         .container { width: 95%; max-width: 900px; margin: 20px auto; }
-        
-        /* Navigation - Sauber getrennt für dein ESP-Rendering */
         .nav-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; justify-content: center; position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 100; border-bottom: 1px solid #333; }
-        .tab-btn { background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; cursor: pointer; flex: 1; transition: 0.3s; }
+        .tab-btn { background: #222; border: 1px solid #444; color: white; padding: 12px; border-radius: 10px; cursor: pointer; flex: 1; min-width: 100px; transition: 0.3s; }
         .tab-btn.active { background: var(--primary); color: #000; font-weight: bold; }
-
         .card { background: var(--card); padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 20px; }
         h2, h3 { color: var(--primary); margin-top: 0; }
-        
-        /* Wochen-Diagramm Styling */
-        .chart-container { display: flex; align-items: flex-end; justify-content: space-around; height: 150px; margin-top: 20px; border-bottom: 2px solid #444; padding-bottom: 5px; }
-        .bar-group { display: flex; flex-direction: column; align-items: center; width: 12%; }
-        .bar { width: 22px; background: var(--primary); border-radius: 5px 5px 0 0; min-height: 2px; transition: height 0.5s ease; }
-        .bar-label { font-size: 0.75em; margin-top: 5px; color: #888; }
-        
-        input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #1a1a1a; color: white; box-sizing: border-box; }
+        input, select { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #1a1a1a; color: white; box-sizing: border-box; }
         button { width: 100%; padding: 14px; background: var(--primary); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: #000; }
-        
         .entry-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 12px; margin: 8px 0; border-radius: 10px; border-left: 5px solid var(--primary); }
         .del-btn { background: var(--danger); color: white; border: none; border-radius: 5px; padding: 6px 12px; cursor: pointer; font-size: 0.8em; width: auto; }
         .hidden { display: none; }
         #sync-status { font-size: 0.7em; text-align: center; color: #555; margin-bottom: 10px; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+        .cal-day { background: #222; padding: 10px; border-radius: 8px; border: 1px solid #444; cursor: pointer; text-align: center; }
+        .cal-day:hover { border-color: var(--primary); }
     </style>
 </head>
 <body>
@@ -39,61 +31,73 @@
         <h2>🔑 Cloud Login</h2>
         <input type="text" id="login-name" placeholder="Name (Maya oder David)">
         <input type="password" id="login-pw" placeholder="Passwort (hummer1234)">
-        <button onclick="checkLogin()">Einloggen & Daten laden</button>
+        <button onclick="checkLogin()">Einloggen</button>
     </div>
 
     <div id="main-app" class="hidden">
         <div id="sync-status">Bereit</div>
         <div class="nav-tabs">
-            <button class="tab-btn active" onclick="showTab('tab-tracker')">Neuer Tag</button>
-            <button class="tab-btn" onclick="showTab('tab-leaderboard')">Wochen-Stats</button>
+            <button class="tab-btn active" onclick="showTab('tab-tracker')">Mein Tag</button>
+            <button class="tab-btn" onclick="showTab('tab-leaderboard')">Ranking</button>
+            <button class="tab-btn" onclick="showTab('tab-calendar')">Kalender</button>
             <button class="tab-btn" onclick="showTab('tab-settings')">Settings</button>
         </div>
 
         <div id="tab-tracker" class="tab-content">
             <div class="card">
-                <h3>Meldungen heute</h3>
-                <input type="text" id="subj" placeholder="Fach (z.B. Physik)">
+                <h3>Neuer Eintrag</h3>
+                <input type="date" id="entry-date">
+                <input type="text" id="subj" placeholder="Fach">
                 <input type="number" id="num" placeholder="Anzahl">
                 <button onclick="saveEntry()">Hinzufügen</button>
             </div>
             <div class="card">
-                <h3>Einträge von heute (Alle)</h3>
-                <div id="current-entries"></div>
-                <button onclick="startNewDay()" style="background:#444; color:white; margin-top:15px">Tag abschließen (für Rückblick)</button>
+                <h3>Deine heutigen Meldungen</h3>
+                <div id="my-today-list"></div>
+                <button onclick="archiveMyDay()" style="background:#444; color:white; margin-top:15px">Meinen Tag abschließen</button>
             </div>
         </div>
 
         <div id="tab-leaderboard" class="tab-content hidden">
             <div class="card">
-                <h3>📊 Wochen-Diagramm (Cloud)</h3>
-                <div id="weekly-chart" class="chart-container"></div>
-                <div id="week-leaderboard" style="margin-top:20px"></div>
+                <h3>🏆 Wochen-Ranking (Cloud)</h3>
+                <div id="week-leaderboard"></div>
+            </div>
+        </div>
+
+        <div id="tab-calendar" class="tab-content hidden">
+            <div class="card">
+                <h3>📅 Archiv / Kalender</h3>
+                <p>Klicke auf einen Tag für Details</p>
+                <div id="calendar-view" class="calendar-grid"></div>
+                <div id="day-details" class="card hidden" style="margin-top:20px; border-color:var(--primary)">
+                    <h4 id="detail-date"></h4>
+                    <div id="detail-list"></div>
+                    <button onclick="document.getElementById('day-details').classList.add('hidden')" style="background:#333; color:white; margin-top:10px">Schließen</button>
+                </div>
             </div>
         </div>
 
         <div id="tab-settings" class="tab-content hidden">
             <div class="card">
-                <h3>Konto</h3>
-                <p>Eingeloggt als: <b id="display-user" style="color:var(--primary)"></b></p>
-                <button onclick="loadFromServer()" style="background:#222; color:white; margin-bottom:10px">Cloud manuell aktualisieren</button>
-                <button onclick="confirmClear()" style="background:#aa0000; color:white; margin-bottom:10px">Alle Cloud-Daten löschen</button>
-                <button onclick="location.reload()" style="background:#333; color:white">Logout</button>
+                <p>User: <b id="display-user"></b></p>
+                <button onclick="confirmClear()" style="background:#aa0000; color:white">Cloud leeren</button>
+                <button onclick="location.reload()" style="background:#333; color:white; margin-top:10px">Logout</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // DEINE JSONBIN KONFIGURATION
     const BIN_ID = '69810caeae596e708f0c4e5e'; 
     const API_KEY = '$2a$10$xTQo4TDre02Su1l4UIu0ouDs2dyvToW6AxspYDFPuttArRsklPS5S'; 
 
     let currentUser = "";
     let data = { entries: [], history: [] };
-    const weekdays = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
-    // Daten von der Cloud laden
+    // Automatisch heutiges Datum setzen
+    document.getElementById('entry-date').valueAsDate = new Date();
+
     async function loadFromServer() {
         setStatus("Synchronisiere...");
         try {
@@ -101,12 +105,12 @@
                 headers: { 'X-Master-Key': API_KEY, 'X-Bin-Meta': false }
             });
             data = await res.json();
+            if(!data.entries) data = { entries: [], history: [] };
             renderAll();
             setStatus("Daten aktuell");
-        } catch (e) { setStatus("Fehler beim Laden!"); }
+        } catch (e) { setStatus("Fehler!"); }
     }
 
-    // Daten in die Cloud schieben
     async function saveAndSync() {
         setStatus("Speichere...");
         try {
@@ -116,8 +120,8 @@
                 body: JSON.stringify(data)
             });
             renderAll();
-            setStatus("Gespeichert");
-        } catch (e) { alert("Speicherfehler in Cloud!"); }
+            setStatus("In Cloud gesichert");
+        } catch (e) { alert("Cloud-Fehler!"); }
     }
 
     async function checkLogin() {
@@ -129,7 +133,7 @@
             document.getElementById('auth-ui').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             document.getElementById('display-user').innerText = currentUser;
-        } else { alert("Login fehlgeschlagen!"); }
+        } else { alert("Login falsch!"); }
     }
 
     function showTab(tabId) {
@@ -141,81 +145,86 @@
     }
 
     function saveEntry() {
+        const d = document.getElementById('entry-date').value;
         const s = document.getElementById('subj').value;
         const n = parseInt(document.getElementById('num').value);
-        if(!s || isNaN(n)) return;
+        if(!d || !s || isNaN(n)) return;
+
         data.entries.push({ 
             id: Date.now() + Math.random(), 
             user: currentUser, 
+            date: d,
             fach: s, 
-            anzahl: n, 
-            dayIndex: new Date().getDay(), 
-            timestamp: Date.now() 
+            anzahl: n,
+            timestamp: Date.now()
         });
         saveAndSync();
         document.getElementById('num').value = "";
     }
 
-    function removeEntry(id) {
-        if(confirm("Eintrag löschen?")) {
-            data.entries = data.entries.filter(e => e.id !== id);
-            data.history = data.history.filter(e => e.id !== id);
-            saveAndSync();
-        }
-    }
-
-    function startNewDay() {
-        if(data.entries.length === 0) return;
-        data.history.push(...data.entries);
-        data.entries = [];
+    function archiveMyDay() {
+        const myEntries = data.entries.filter(e => e.user === currentUser);
+        if(myEntries.length === 0) return;
+        data.history.push(...myEntries);
+        data.entries = data.entries.filter(e => e.user !== currentUser);
         saveAndSync();
-        alert("Tag abgeschlossen und in Wochen-Statistik übertragen!");
+        alert("Dein Tag wurde im Kalender archiviert!");
     }
 
     function renderAll() {
-        const list = document.getElementById('current-entries');
-        list.innerHTML = data.entries.length ? "" : "Noch keine Einträge heute.";
-        data.entries.forEach(e => { 
+        // Meine Liste
+        const list = document.getElementById('my-today-list');
+        const myToday = data.entries.filter(e => e.user === currentUser);
+        list.innerHTML = myToday.length ? "" : "Keine Einträge für heute.";
+        myToday.forEach(e => {
             list.innerHTML += `<div class="entry-item">
-                <span><b>${e.user}</b>: ${e.anzahl} (${e.fach})</span>
-                <button class="del-btn" onclick="removeEntry(${e.id})">Löschen</button>
-            </div>`; 
+                <span><b>${e.fach}</b>: ${e.anzahl} (${e.date})</span>
+                <button class="del-btn" onclick="removeEntry(${e.id})">X</button>
+            </div>`;
         });
 
+        // Ranking (7 Tage)
+        const weekLB = document.getElementById('week-leaderboard');
         const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-        const weekEntries = [...data.entries, ...data.history].filter(e => e.timestamp > oneWeekAgo);
-        const dayTotals = new Array(7).fill(0);
-        const userTotals = { "Maya": 0, "David": 0 };
-
-        weekEntries.forEach(e => {
-            dayTotals[e.dayIndex] += e.anzahl;
-            if(userTotals.hasOwnProperty(e.user)) userTotals[e.user] += e.anzahl;
-        });
-
-        const max = Math.max(...dayTotals, 10);
-        document.getElementById('weekly-chart').innerHTML = dayTotals.map((total, i) => `
-            <div class="bar-group">
-                <div class="bar" style="height: ${(total/max)*100}%"></div>
-                <div class="bar-label">${weekdays[i]}</div>
-            </div>
+        const all = [...data.entries, ...data.history].filter(e => e.timestamp > oneWeekAgo);
+        const totals = { "Maya": 0, "David": 0 };
+        all.forEach(e => { if(totals.hasOwnProperty(e.user)) totals[e.user] += e.anzahl; });
+        
+        weekLB.innerHTML = Object.entries(totals).sort((a,b)=>b[1]-a[1]).map(s => `
+            <div class="entry-item"><span>${s[0]}</span><b>${s[1]} Meldungen</b></div>
         `).join("");
 
-        document.getElementById('week-leaderboard').innerHTML = `<h3>Wochen-Ranking</h3>` + 
-            Object.entries(userTotals).sort((a,b)=>b[1]-a[1]).map(s => `
-                <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #333">
-                    <span>${s[0]}</span><b style="color:var(--primary)">${s[1]} Meldungen</b>
-                </div>
-            `).join("");
+        // Kalender-Ansicht
+        const cal = document.getElementById('calendar-view');
+        cal.innerHTML = "";
+        const allHistory = [...data.entries, ...data.history];
+        const days = [...new Set(allHistory.map(e => e.date))].sort().reverse();
+        
+        days.forEach(d => {
+            const dateObj = new Date(d);
+            const label = dateObj.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+            cal.innerHTML += `<div class="cal-day" onclick="showDayDetail('${d}')">${label}</div>`;
+        });
     }
 
-    function setStatus(txt) { document.getElementById('sync-status').innerText = txt; }
-
-    async function confirmClear() { 
-        if(confirm("Cloud komplett leeren?")) { 
-            data = {entries:[], history:[]}; 
-            await saveAndSync(); 
-        } 
+    function showDayDetail(dateStr) {
+        const details = document.getElementById('day-details');
+        const list = document.getElementById('detail-list');
+        const all = [...data.entries, ...data.history].filter(e => e.date === dateStr);
+        
+        document.getElementById('detail-date').innerText = "Details für " + dateStr;
+        list.innerHTML = all.map(e => `<div><b>${e.user}</b>: ${e.anzahl} (${e.fach})</div>`).join("");
+        details.classList.remove('hidden');
     }
+
+    function removeEntry(id) {
+        data.entries = data.entries.filter(e => e.id !== id);
+        data.history = data.history.filter(e => e.id !== id);
+        saveAndSync();
+    }
+
+    function setStatus(t) { document.getElementById('sync-status').innerText = t; }
+    function confirmClear() { if(confirm("ALLES löschen?")) { data={entries:[],history:[]}; saveAndSync(); } }
 </script>
 </body>
 </html>
