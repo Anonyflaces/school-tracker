@@ -2,102 +2,104 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Schul-Tracker Cloud</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School-Tracker</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-        .card { background: #1e1e1e; padding: 25px; border-radius: 15px; max-width: 380px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        input { width: 90%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #333; background: #252525; color: white; }
-        button { width: 95%; padding: 12px; background: #00d4ff; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        body { font-family: sans-serif; background: #0b0b0b; color: #eee; margin: 0; }
+        
+        /* Leaderboard ganz oben, damit die Mitte für ESP frei bleibt */
+        #leaderboard-top { 
+            position: fixed; top: 0; left: 0; width: 100%; 
+            background: rgba(0, 212, 255, 0.15); border-bottom: 2px solid #00d4ff;
+            display: flex; justify-content: center; gap: 20px; padding: 10px 0;
+            font-size: 0.85em; z-index: 1000; backdrop-filter: blur(8px);
+        }
+
+        .main-content { margin-top: 100px; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 12px; width: 100%; max-width: 350px; border: 1px solid #333; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        input { width: 90%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #222; color: white; }
+        button { width: 95%; padding: 12px; background: #00d4ff; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; color: #000; }
         .hidden { display: none; }
-        .entry { background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; border-left: 4px solid #00d4ff; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <div id="auth-ui">
-        <h2>🔑 Login / Register</h2>
-        <input type="email" id="email" placeholder="E-Mail">
+<div id="leaderboard-top">
+    <span>🏆 Warte auf Daten...</span>
+</div>
+
+<div class="main-content">
+    <div id="auth-ui" class="card">
+        <h2 style="margin-top:0">🔑 Schul-Login</h2>
+        <input type="email" id="email" placeholder="E-Mail (z.B. test@test.de)">
         <input type="password" id="pw" placeholder="Passwort">
-        <button onclick="signUp()">Account erstellen</button>
-        <button onclick="login()" style="background:#4caf50">Einloggen</button>
+        <button onclick="signUp()">Konto erstellen</button>
+        <button onclick="login()" style="background:#4caf50; margin-top:10px">Einloggen</button>
     </div>
 
-    <div id="app-ui" class="hidden">
-        <h2 id="user-info">Hi!</h2>
-        <input type="text" id="subj" placeholder="Fach (z.B. Englisch)">
-        <input type="number" id="num" placeholder="Meldungen">
-        <button onclick="saveData()">In Cloud speichern</button>
-        
-        <h3 style="margin-top:20px">🏆 Leaderboard (Top 5)</h3>
-        <div id="leaderboard"></div>
-        
-        <button onclick="firebase.auth().signOut(); location.reload()" style="background:red; margin-top:20px">Logout</button>
+    <div id="app-ui" class="card hidden">
+        <p>Willkommen, <b id="user-display" style="color:#00d4ff"></b></p>
+        <input type="text" id="subj" placeholder="Fach (z.B. Mathe)">
+        <input type="number" id="num" placeholder="Anzahl Meldungen">
+        <button onclick="saveData()">Speichern & Leaderboard updaten</button>
+        <button onclick="firebase.auth().signOut(); location.reload()" style="background:#333; margin-top:15px; font-size: 0.8em; color: white;">Logout</button>
     </div>
 </div>
 
 <script>
-    // DEINE DATEN AUS SCREENSHOT image_46766a.png
+    // DEINE KORREKTEN DATEN (mit kleinem x bei Fxqn)
     const firebaseConfig = {
-    apiKey: "AIzaSyC-1rRYNOAjiknVlm40VWUZxFxqnOJwt7E",
-    authDomain: "meldungstracker.firebaseapp.com",
-    projectId: "meldungstracker",
-    storageBucket: "meldungstracker.firebasestorage.app",
-    messagingSenderId: "615443672287",
-    appId: "1:615443672287:web:c47c7c851660ed7f308d6a"
-  };
+        apiKey: "AIzaSyC-1rRYNOAjiknVlm40VWUZxFxqnOJwt7E",
+        authDomain: "meldungstracker.firebaseapp.com",
+        projectId: "meldungstracker",
+        storageBucket: "meldungstracker.firebasestorage.app",
+        messagingSenderId: "615443672287",
+        appId: "1:615443672287:web:c47c7c851660ed7f308d6a"
+    };
 
+    // Firebase Initialisierung (Compat Mode)
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
 
-    function signUp() {
-        auth.createUserWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message));
-    }
-
-    function login() {
-        auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message));
-    }
+    function signUp() { auth.createUserWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message)); }
+    function login() { auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message)); }
 
     auth.onAuthStateChanged(user => {
         if (user) {
             document.getElementById('auth-ui').classList.add('hidden');
             document.getElementById('app-ui').classList.remove('hidden');
-            document.getElementById('user-info').innerText = "User: " + user.email.split('@')[0];
-            loadLeaderboard();
+            document.getElementById('user-display').innerText = user.email.split('@')[0];
+            updateLeaderboard();
         }
     });
 
     function saveData() {
-        const subject = document.getElementById('subj').value;
-        const count = parseInt(document.getElementById('num').value);
-        if(!subject || isNaN(count)) return;
-
+        const s = document.getElementById('subj').value;
+        const n = parseInt(document.getElementById('num').value);
+        if(!s || isNaN(n)) return;
         db.collection("stats").add({
             name: auth.currentUser.email.split('@')[0],
-            fach: subject,
-            anzahl: count,
+            fach: s,
+            anzahl: n,
             time: firebase.firestore.FieldValue.serverTimestamp()
-        }).then(() => {
-            alert("Erfolg!");
-            loadLeaderboard();
-        });
+        }).then(() => { updateLeaderboard(); document.getElementById('num').value = ""; });
     }
 
-    function loadLeaderboard() {
-        db.collection("stats").orderBy("anzahl", "desc").limit(5).get().then(snap => {
-            const lb = document.getElementById('leaderboard');
+    function updateLeaderboard() {
+        db.collection("stats").orderBy("anzahl", "desc").limit(3).get().then(snap => {
+            const lb = document.getElementById('leaderboard-top');
+            if(snap.empty) return;
             lb.innerHTML = "";
             snap.forEach(doc => {
                 const d = doc.data();
-                lb.innerHTML += `<div class="entry"><span>${d.name} (${d.fach})</span> <b>${d.anzahl}x</b></div>`;
+                lb.innerHTML += `<span>⭐ <b>${d.name}</b>: ${d.anzahl} (${d.fach})</span>`;
             });
         });
     }
 </script>
 </body>
-
 </html>
