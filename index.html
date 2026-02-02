@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Schul-Tracker Cloud</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
+        .card { background: #1e1e1e; padding: 25px; border-radius: 15px; max-width: 380px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { width: 90%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #333; background: #252525; color: white; }
+        button { width: 95%; padding: 12px; background: #00d4ff; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .hidden { display: none; }
+        .entry { background: #2a2a2a; padding: 10px; margin: 10px 0; border-radius: 8px; display: flex; justify-content: space-between; border-left: 4px solid #00d4ff; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div id="auth-ui">
+        <h2>🔑 Login / Register</h2>
+        <input type="email" id="email" placeholder="E-Mail">
+        <input type="password" id="pw" placeholder="Passwort">
+        <button onclick="signUp()">Account erstellen</button>
+        <button onclick="login()" style="background:#4caf50">Einloggen</button>
+    </div>
+
+    <div id="app-ui" class="hidden">
+        <h2 id="user-info">Hi!</h2>
+        <input type="text" id="subj" placeholder="Fach (z.B. Englisch)">
+        <input type="number" id="num" placeholder="Meldungen">
+        <button onclick="saveData()">In Cloud speichern</button>
+        
+        <h3 style="margin-top:20px">🏆 Leaderboard (Top 5)</h3>
+        <div id="leaderboard"></div>
+        
+        <button onclick="firebase.auth().signOut(); location.reload()" style="background:red; margin-top:20px">Logout</button>
+    </div>
+</div>
+
+<script>
+    // DEINE DATEN AUS SCREENSHOT image_46766a.png
+    const firebaseConfig = {
+        apiKey: "AIzaSyC-1rRYNOAjiknVlm40VWUZxFxqnOJwt7E",
+        authDomain: "meldungstracker.firebaseapp.com",
+        projectId: "meldungstracker",
+        storageBucket: "meldungstracker.firebasestorage.app",
+        messagingSenderId: "615443672287",
+        appId: "1:615443672287:web:c47c7c851660ed7f308d6a"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    function signUp() {
+        auth.createUserWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message));
+    }
+
+    function login() {
+        auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('pw').value).catch(e => alert(e.message));
+    }
+
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            document.getElementById('auth-ui').classList.add('hidden');
+            document.getElementById('app-ui').classList.remove('hidden');
+            document.getElementById('user-info').innerText = "User: " + user.email.split('@')[0];
+            loadLeaderboard();
+        }
+    });
+
+    function saveData() {
+        const subject = document.getElementById('subj').value;
+        const count = parseInt(document.getElementById('num').value);
+        if(!subject || isNaN(count)) return;
+
+        db.collection("stats").add({
+            name: auth.currentUser.email.split('@')[0],
+            fach: subject,
+            anzahl: count,
+            time: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            alert("Erfolg!");
+            loadLeaderboard();
+        });
+    }
+
+    function loadLeaderboard() {
+        db.collection("stats").orderBy("anzahl", "desc").limit(5).get().then(snap => {
+            const lb = document.getElementById('leaderboard');
+            lb.innerHTML = "";
+            snap.forEach(doc => {
+                const d = doc.data();
+                lb.innerHTML += `<div class="entry"><span>${d.name} (${d.fach})</span> <b>${d.anzahl}x</b></div>`;
+            });
+        });
+    }
+</script>
+</body>
+</html>
