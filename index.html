@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>School-Tracker Weekly</title>
     <style>
-        :root { --primary: #00d4ff; --bg: #0b0b0b; --card: #161616; --text: #eee; }
+        :root { --primary: #00d4ff; --bg: #0b0b0b; --card: #161616; --text: #eee; --danger: #ff4444; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 50px; }
         .container { width: 95%; max-width: 900px; margin: 20px auto; }
         
@@ -16,7 +16,6 @@
         .card { background: var(--card); padding: 25px; border-radius: 15px; border: 1px solid #333; margin-bottom: 20px; }
         h2, h3 { color: var(--primary); margin-top: 0; }
         
-        /* Diagramm Styling */
         .chart-container { display: flex; align-items: flex-end; justify-content: space-around; height: 150px; margin-top: 20px; border-bottom: 2px solid #444; padding-bottom: 5px; }
         .bar-group { display: flex; flex-direction: column; align-items: center; width: 12%; }
         .bar { width: 20px; background: var(--primary); border-radius: 5px 5px 0 0; transition: height 0.5s; min-height: 2px; }
@@ -24,7 +23,9 @@
         
         input { width: 100%; padding: 14px; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #1a1a1a; color: white; box-sizing: border-box; }
         button { width: 100%; padding: 14px; background: var(--primary); border: none; border-radius: 10px; font-weight: bold; cursor: pointer; color: #000; }
+        
         .entry-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 12px; margin: 8px 0; border-radius: 10px; border-left: 5px solid var(--primary); }
+        .del-btn { background: var(--danger); color: white; border: none; border-radius: 5px; padding: 5px 10px; cursor: pointer; font-size: 0.8em; width: auto; }
         .hidden { display: none; }
     </style>
 </head>
@@ -52,7 +53,7 @@
                 <input type="number" id="num" placeholder="Anzahl">
                 <button onclick="saveEntry()">Hinzufügen</button>
             </div>
-            <div id="current-list-card" class="card">
+            <div class="card">
                 <h3>Deine Liste von heute</h3>
                 <div id="current-entries"></div>
                 <button onclick="startNewDay()" style="background:#444; color:white; margin-top:15px">Tag abschließen (für Diagramm)</button>
@@ -61,7 +62,7 @@
 
         <div id="tab-leaderboard" class="tab-content hidden">
             <div class="card">
-                <h3>📊 Wochen-Diagramm</h3>
+                <h3>📊 Wochen-Diagramm (7 Tage)</h3>
                 <div id="weekly-chart" class="chart-container"></div>
                 <div id="week-leaderboard" style="margin-top:20px"></div>
             </div>
@@ -91,7 +92,7 @@
             document.getElementById('main-app').classList.remove('hidden');
             document.getElementById('display-user').innerText = currentUser;
             renderAll();
-        } else { alert("Falsch!"); }
+        } else { alert("Name oder Passwort falsch!"); }
     }
 
     function showTab(tabId) {
@@ -107,9 +108,28 @@
         const n = parseInt(document.getElementById('num').value);
         if(!s || isNaN(n)) return;
         const now = new Date();
-        data.entries.push({ id: Date.now(), user: currentUser, fach: s, anzahl: n, dayIndex: now.getDay(), timestamp: Date.now() });
+        data.entries.push({ 
+            id: Date.now() + Math.random(), 
+            user: currentUser, 
+            fach: s, 
+            anzahl: n, 
+            dayIndex: now.getDay(), 
+            timestamp: Date.now() 
+        });
         saveAndSync();
         document.getElementById('num').value = "";
+    }
+
+    // NEU: Funktion zum Löschen einzelner Einträge
+    function removeEntry(id, isHistory) {
+        if(confirm("Diesen Eintrag wirklich löschen?")) {
+            if(isHistory) {
+                data.history = data.history.filter(e => e.id !== id);
+            } else {
+                data.entries = data.entries.filter(e => e.id !== id);
+            }
+            saveAndSync();
+        }
     }
 
     function startNewDay() {
@@ -117,25 +137,35 @@
         data.history.push(...data.entries);
         data.entries = [];
         saveAndSync();
-        alert("Tag gespeichert!");
+        alert("Tag archiviert!");
     }
 
-    function saveAndSync() { localStorage.setItem('trackerData', JSON.stringify(data)); renderAll(); }
+    function saveAndSync() { 
+        localStorage.setItem('trackerData', JSON.stringify(data)); 
+        renderAll(); 
+    }
 
     function renderAll() {
-        // Liste Heute
+        // Liste Heute mit Löschen-Button
         const list = document.getElementById('current-entries');
         const myToday = data.entries.filter(e => e.user === currentUser);
-        list.innerHTML = myToday.length ? "" : "Noch nichts.";
-        myToday.forEach(e => { list.innerHTML += `<div class="entry-item"><span><b>${e.fach}</b>: ${e.anzahl}</span></div>`; });
+        list.innerHTML = myToday.length ? "" : "Noch nichts eingetragen.";
+        myToday.forEach(e => { 
+            list.innerHTML += `
+                <div class="entry-item">
+                    <span><b>${e.fach}</b>: ${e.anzahl}</span>
+                    <button class="del-btn" onclick="removeEntry(${e.id}, false)">Löschen</button>
+                </div>`; 
+        });
 
         // Diagramm & Wochen-Stats
         const chart = document.getElementById('weekly-chart');
         const weekLB = document.getElementById('week-leaderboard');
         const oneWeekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        
+        // Nur Einträge der letzten 7 Tage für die Anzeige nehmen
         const weekEntries = [...data.entries, ...data.history].filter(e => e.timestamp > oneWeekAgo);
 
-        // Summen pro Tag für Diagramm
         const dayTotals = new Array(7).fill(0);
         const userTotals = { "Maya": 0, "David": 0 };
         weekEntries.forEach(e => {
@@ -158,8 +188,7 @@
         `).join("");
     }
 
-    function confirmClear() { if(confirm("Alles löschen?")) { data = {entries:[], history:[]}; saveAndSync(); } }
+    function confirmClear() { if(confirm("Wirklich ALLES löschen?")) { data = {entries:[], history:[]}; saveAndSync(); } }
 </script>
 </body>
 </html>
-
